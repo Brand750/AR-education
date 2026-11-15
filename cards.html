@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Card sheet</title>
+  <style>
+    @page { size: A4 portrait; margin: 8mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #000; background: #fff; }
+    .help { padding: 12px 16px; background: #eef3fa; font-size: 15px; }
+    .help button { font: inherit; padding: 6px 12px; }
+    .sheet { padding: 4mm 0; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+    .sheet h1 { font-size: 11pt; font-weight: 600; margin: 0 0 2mm; }
+    .ruler { width: 10cm; border-top: 0.4mm solid #000; font-size: 8pt; padding-top: 1mm; margin-bottom: 4mm;
+             background: repeating-linear-gradient(to right, #000 0, #000 0.3mm, transparent 0.3mm, transparent 1cm) top / 100% 2mm no-repeat; }
+    .cards { display: flex; flex-wrap: wrap; gap: 4mm; }
+
+    /* A card: top strip, marker with a white margin, grip tab. --m is the marker width. */
+    .card { width: calc(var(--m) + 1.2cm); border: 0.2mm dashed #999; }
+    /* The arrow sits at the top of a 1.6 cm strip, so 0.7 cm of white stays between it and the marker. */
+    .card .top { height: 1.6cm; padding-top: 0.2cm; display: flex; align-items: flex-start; justify-content: center; }
+    .card .top svg { height: 0.7cm; }
+    .card .marker { padding: 0 0.6cm 0.6cm; }
+    .card .marker img { display: block; width: var(--m); height: var(--m); image-rendering: pixelated; }
+    .card .tab { height: 2cm; border-top: 0.2mm dashed #999; display: flex; align-items: center; justify-content: center;
+                 gap: 3mm; font-size: 14pt; font-weight: 600; }
+    .card .tab svg { height: 1.1cm; width: 1.1cm; }
+
+    @media print { .help { display: none; } }
+    @media screen { body { padding-bottom: 24px; } .sheet { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="help">
+    Print on matte paper at <b>100% / actual size</b> (not "fit to page"). Check the 10 cm line with a ruler, then cut along the dashed lines.
+    Hold cards by the name tab so fingers never cover the black border.
+    <button onclick="print()">Print</button>
+  </div>
+
+  <div id="sheets"></div>
+
+  <script src="text.js"></script>
+  <script>
+    // Marker values 1, 2, 4 from the 3x3 Hamming set (every pair differs in four cells).
+    const ICONS = {
+      sensor: '<svg viewBox="0 0 40 40"><rect x="2" y="10" width="36" height="20" rx="3" fill="none" stroke="#000" stroke-width="2.5"/><circle cx="13" cy="20" r="6" fill="none" stroke="#000" stroke-width="2.5"/><circle cx="27" cy="20" r="6" fill="none" stroke="#000" stroke-width="2.5"/></svg>',
+      car: '<svg viewBox="0 0 40 40"><path d="M5 25v-5l4-8h22l4 8v5z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/><circle cx="12" cy="27" r="4" fill="#000"/><circle cx="28" cy="27" r="4" fill="#000"/></svg>',
+      buzzer: '<svg viewBox="0 0 40 40"><circle cx="15" cy="20" r="10" fill="none" stroke="#000" stroke-width="2.5"/><circle cx="15" cy="20" r="2.5" fill="#000"/><path d="M30 13a10 10 0 0 1 0 14M34 9a16 16 0 0 1 0 22" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/></svg>',
+    };
+    const ARROW = '<svg viewBox="0 0 40 28"><path d="M20 2 34 26H6z" fill="#000"/></svg>';
+    const CARDS = [
+      { key: 'sensor', value: 1, arrow: true },
+      { key: 'car', value: 2 },
+      { key: 'buzzer', value: 4 },
+    ];
+    const SIZES = [6, 8];   // marker width in cm
+
+    document.getElementById('sheets').innerHTML = SIZES.map((m) => `
+      <section class="sheet" style="--m: ${m}cm">
+        <h1>AR Sensor Cards — ${m} cm markers</h1>
+        <div class="ruler">10 cm</div>
+        <div class="cards">
+          ${CARDS.map((c) => `
+            <div class="card">
+              <div class="top">${c.arrow ? ARROW : ''}</div>
+              <div class="marker"><img src="markers/${c.value}.png" alt="marker ${c.value}"></div>
+              <div class="tab">${ICONS[c.key]}<span>${Text.t[c.key]}</span></div>
+            </div>`).join('')}
+        </div>
+      </section>`).join('');
+  </script>
+</body>
+</html>

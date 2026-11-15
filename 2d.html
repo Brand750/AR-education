@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Echo — 2D</title>
+  <link rel="stylesheet" href="app.css">
+  <style>
+    body { background: #e9e4da; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  </style>
+</head>
+<body>
+  <canvas id="desk"></canvas>
+
+  <script src="core.js"></script>
+  <script src="text.js"></script>
+  <script src="log.js"></script>
+  <script src="echo.js"></script>
+  <script>
+    // 2D input: a top view of the desk. The car is moved with a finger.
+    const canvas = document.getElementById('desk');
+    const ctx = canvas.getContext('2d');
+    const CARD = Core.CONFIG.CARD_CM;
+    const TOP = 100, BOTTOM = 110;      // space kept for the numbers and the panel (px)
+
+    let W, H, pxPerCm, sensor, car = null, dragging = null;
+
+    function layout() {
+      const dpr = window.devicePixelRatio || 1;
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const keepCm = car ? toCm(car) : { forward: CARD + 12, sideways: 0 };
+      pxPerCm = (H - TOP - BOTTOM) / (Core.CONFIG.RANGE_CM + 2 * CARD + 2);
+      sensor = { x: W / 2, y: H - BOTTOM - (CARD / 2 + 1) * pxPerCm };  // faces up the screen
+      car = clamp({ x: sensor.x + keepCm.sideways * pxPerCm, y: sensor.y - keepCm.forward * pxPerCm });
+    }
+
+    // Car centre, measured from the sensor centre, in cm.
+    function toCm(p) {
+      return { forward: (sensor.y - p.y) / pxPerCm, sideways: (p.x - sensor.x) / pxPerCm };
+    }
+
+    // Keep the car on the desk and off the sensor card.
+    function clamp(p) {
+      const half = (CARD / 2) * pxPerCm;
+      let x = Math.min(W - half, Math.max(half, p.x));
+      let y = Math.min(H - BOTTOM - half, Math.max(TOP + half, p.y));
+      const dx = x - sensor.x, dy = y - sensor.y, d = Math.hypot(dx, dy), min = CARD * pxPerCm;
+      if (d < min) {
+        if (d === 0) { y = sensor.y - min; }
+        else { x = sensor.x + (dx / d) * min; y = sensor.y + (dy / d) * min; }
+      }
+      return { x, y };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      const half = (CARD / 2) * pxPerCm + 12;
+      if (Math.abs(e.clientX - car.x) <= half && Math.abs(e.clientY - car.y) <= half) {
+        dragging = { dx: car.x - e.clientX, dy: car.y - e.clientY };
+        canvas.setPointerCapture(e.pointerId);
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (dragging) car = clamp({ x: e.clientX + dragging.dx, y: e.clientY + dragging.dy });
+    });
+    const release = () => { dragging = null; };
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
+    window.addEventListener('resize', layout);
+    layout();
+
+    function read() {
+      const c = toCm(car);
+      const gap = Core.gapFromCentres(c.forward, c.sideways, CARD);
+      return { sensorSeen: true, carSeen: true, forward: gap.forward, sideways: gap.sideways };
+    }
+
+    function drawCard(p, label, fill, arrow) {
+      const s = CARD * pxPerCm;
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(p.x - s / 2, p.y - s / 2, s, s, 8);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.roundRect(p.x - s * 0.36, p.y - s * 0.36, s * 0.72, s * 0.72, 6);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `600 ${Math.max(11, s * 0.17)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, p.x, p.y + (arrow ? s * 0.1 : 0));
+      if (arrow) {            // the side the sensor faces
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - s * 0.28);
+        ctx.lineTo(p.x - s * 0.1, p.y - s * 0.12);
+        ctx.lineTo(p.x + s * 0.1, p.y - s * 0.12);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    function draw(view) {
+      ctx.clearRect(0, 0, W, H);
+      drawCard(sensor, Text.t.sensor, '#16202e', true);
+      drawCard(car, Text.t.car, '#5b6b7f', false);
+
+      if (!view.pulse || view.pulse.leg === 'rest') return;
+      // The pulse runs from the sensor card's edge to the car card's edge.
+      const dx = car.x - sensor.x, dy = car.y - sensor.y, d = Math.hypot(dx, dy);
+      if (d === 0) return;
+      const ux = dx / d, uy = dy / d, half = (CARD / 2) * pxPerCm;
+      const gap = d - 2 * half;
+      const from = { x: sensor.x + ux * half, y: sensor.y + uy * half };
+      const to = { x: car.x - ux * half, y: car.y - uy * half };
+      const out = view.pulse.leg === 'out';
+      const centre = out ? from : to;
+      const radius = Math.max(1, (out ? view.pulse.along : 1 - view.pulse.along) * gap);
+      const aim = Math.atan2(uy, ux) + (out ? 0 : Math.PI);
+      ctx.strokeStyle = out ? '#1f6fd0' : '#e2622b';
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(centre.x, centre.y, radius, aim - 0.45, aim + 0.45);
+      ctx.stroke();
+    }
+
+    EchoStep.start({ mode: '2d', read, draw });
+  </script>
+</body>
+</html>

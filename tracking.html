@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Tracking test</title>
+  <script src="vendor/aframe.min.js"></script>
+  <script src="vendor/aframe-ar.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; overflow: hidden; font: 14px/1.35 system-ui, -apple-system, sans-serif; color: #16202e; }
+    #hud {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; max-height: 52vh; overflow: auto;
+      background: rgba(255,255,255,0.93); padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    }
+    table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 2px 6px 2px 0; white-space: nowrap; }
+    th { font-weight: 600; font-size: 12px; opacity: 0.7; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #c8c8c8; margin-right: 4px; }
+    .dot.on { background: #1a9c4b; }
+    .big b { font-size: 20px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    input[type=text] { flex: 1; min-width: 140px; }
+    input, select, button { font: inherit; padding: 6px 8px; }
+    button { border: 0; border-radius: 8px; background: #1f6fd0; color: #fff; }
+    button.quiet { background: #e4e8ee; color: #16202e; }
+    .ok { color: #13803c; } .bad { color: #c22a2a; }
+    #results { margin-top: 8px; font-size: 12px; }
+    #results td, #results th { padding-right: 10px; }
+  </style>
+</head>
+<body>
+  <div id="scene"></div>
+
+  <div id="hud">
+    <table>
+      <tr><th>Card</th><th>Seen</th><th>Lost</th><th></th></tr>
+      <tr><td><span class="dot" id="d-sensor"></span>Sensor (1)</td><td id="p-sensor">–</td><td id="l-sensor">0</td><td></td></tr>
+      <tr><td><span class="dot" id="d-car"></span>Car (2)</td><td id="p-car">–</td><td id="l-car">0</td><td></td></tr>
+      <tr><td><span class="dot" id="d-buzzer"></span>Buzzer (4)</td><td id="p-buzzer">–</td><td id="l-buzzer">0</td><td></td></tr>
+    </table>
+    <div class="row big">
+      <span><b id="fps">–</b> fps</span>
+      <span>centres <b id="centres">–</b> cm</span>
+      <span>gap <b id="gap">–</b> cm</span>
+    </div>
+    <div class="row">
+      <span>forward <b id="fwd">–</b></span>
+      <span>sideways <b id="side">–</b></span>
+      <span>wobble (2 s) <b id="wobble">–</b> cm</span>
+    </div>
+    <div class="row">
+      <label>Marker <select id="size"><option value="6">6 cm</option><option value="8">8 cm</option></select></label>
+      <label><input type="checkbox" id="three"> buzzer card in view</label>
+      <a id="res" href="#"></a>
+    </div>
+    <div class="row">
+      <input type="text" id="label" placeholder="Condition, e.g. 30 cm, straight down, daylight, by hand">
+      <button id="record">Record 20 s</button>
+    </div>
+    <div class="row">
+      <button class="quiet" id="copy">Copy table (CSV)</button>
+      <button class="quiet" id="clear">Clear table</button>
+      <span id="note"></span>
+    </div>
+    <table id="results"></table>
+  </div>
+
+  <script src="core.js"></script>
+  <script>
+    // Tracking test: shows live whether each card is seen, the frame rate,
+    // how often a card was lost, and the sensor-to-car distance.
+    // "Record 20 s" adds one row to the table for the paper's technical section.
+
+    // ?res=hi asks the camera for a larger frame. Try it only if 6 cm cards fail.
+    const hi = new URLSearchParams(location.search).get('res') === 'hi';
+    const res = hi
+      ? 'sourceWidth: 1280; sourceHeight: 960; displayWidth: 1280; displayHeight: 960; canvasWidth: 1280; canvasHeight: 960;'
+      : '';
+    const resLink = document.getElementById('res');
+    resLink.textContent = hi ? 'Camera frame: large (switch to normal)' : 'Camera frame: normal (try large)';
+    resLink.href = hi ? 'tracking.html' : 'tracking.html?res=hi';
+
+    const square = (color) =>
+      `<a-plane rotation="-90 0 0" width="1" height="1" material="shader: flat; color: ${color}; opacity: 0.45; transparent: true"></a-plane>`;
+    document.getElementById('scene').innerHTML = `
+      <a-scene embedded
+               arjs="sourceType: webcam; detectionMode: mono_and_matrix; matrixCodeType: 3x3_HAMMING63; cameraParametersUrl: vendor/camera_para.dat; debugUIEnabled: false; ${res}"
+               vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false"
+               loading-screen="enabled: false" renderer="logarithmicDepthBuffer: true;">
+        <a-marker id="sensor" type="barcode" value="1">${square('#1f6fd0')}
+          <a-cone position="0 0.01 -0.75" rotation="-90 0 0" radius-bottom="0.18" radius-top="0" height="0.4"
+                  material="shader: flat; color: #1f6fd0"></a-cone>
+        </a-marker>
+        <a-marker id="car" type="barcode" value="2">${square('#e2622b')}</a-marker>
+        <a-marker id="buzzer" type="barcode" value="4">${square('#1a9c4b')}</a-marker>
+        <a-entity camera look-controls="enabled: false"></a-entity>
+      </a-scene>`;
+
+    const $ = (id) => document.getElementById(id);
+    const NAMES = ['sensor', 'car', 'buzzer'];
+    const el = Object.fromEntries(NAMES.map((n) => [n, $(n)]));
+    const RECORD_MS = 20000, KEY = 'arsc.tracking.v1';
+    const v = new THREE.Vector3(), q = new THREE.Quaternion();
+
+    const newCount = () => ({
+      frames: 0, ms: 0,
+      seen: { sensor: 0, car: 0, buzzer: 0 },
+      lost: { sensor: 0, car: 0, buzzer: 0 },
+      dist: [],
+    });
+    let live = newCount(), run = null, runStart = 0;
+    let was = { sensor: false, car: false, buzzer: false };
+    let last = null, fpsFrames = 0, fpsMs = 0, recent = [];
+
+    function setSize() {
+      Core.CONFIG.MARKER_CM = Number($('size').value);
+      Core.CONFIG.CARD_CM = Core.CONFIG.MARKER_CM + 1.2;
+    }
+    $('size').addEventListener('change', setSize);
+    setSize();
+
+    function tick(now) {
+      requestAnimationFrame(tick);
+      const dt = last === null ? 0 : now - last;
+      last = now;
+      const seen = Object.fromEntries(NAMES.map((n) => [n, el[n].object3D.visible]));
+
+      let centres = null, f = null, s = null;
+      if (seen.sensor && seen.car) {
+        const a = el.sensor.object3D, b = el.car.object3D;
+        v.copy(b.position).sub(a.position).applyQuaternion(q.copy(a.quaternion).invert());
+        f = -v.z * Core.CONFIG.MARKER_CM;
+        s = v.x * Core.CONFIG.MARKER_CM;
+        centres = Math.hypot(f, s);
+      }
+
+      for (const c of run ? [live, run] : [live]) {
+        c.frames++; c.ms += dt;
+        for (const n of NAMES) {
+          if (seen[n]) c.seen[n]++;
+          if (was[n] && !seen[n]) c.lost[n]++;
+        }
+        if (centres !== null && c === run) c.dist.push(centres);
+      }
+      was = seen;
+
+      // Wobble: how much the reading moved over the last two seconds.
+      if (centres !== null) recent.push([now, centres]);
+      while (recent.length && now - recent[0][0] > 2000) recent.shift();
+
+      fpsFrames++; fpsMs += dt;
+      if (fpsMs >= 500) {
+        const fps = (fpsFrames * 1000) / fpsMs;
+        fpsFrames = 0; fpsMs = 0;
+        $('fps').textContent = fps.toFixed(0);
+        $('fps').className = fps >= 15 ? 'ok' : 'bad';
+        for (const n of NAMES) {
+          $('d-' + n).className = 'dot' + (seen[n] ? ' on' : '');
+          const share = live.frames ? (100 * live.seen[n]) / live.frames : 0;
+          $('p-' + n).textContent = share.toFixed(0) + '%';
+          $('p-' + n).className = share >= 90 ? 'ok' : 'bad';
+          $('l-' + n).textContent = live.lost[n];
+        }
+        $('centres').textContent = centres === null ? '–' : centres.toFixed(1);
+        $('gap').textContent = centres === null ? '–' : Math.max(0, centres - Core.CONFIG.CARD_CM).toFixed(1);
+        $('fwd').textContent = f === null ? '–' : f.toFixed(1);
+        $('side').textContent = s === null ? '–' : s.toFixed(1);
+        if (recent.length > 5) {
+          const ds = recent.map((r) => r[1]);
+          const w = Math.max(...ds) - Math.min(...ds);
+          $('wobble').textContent = w.toFixed(1);
+          $('wobble').className = w < 1 ? 'ok' : 'bad';
+        } else {
+          $('wobble').textContent = '–';
+        }
+        if (run) $('record').textContent = Math.ceil((RECORD_MS - (now - runStart)) / 1000) + ' s…';
+      }
+
+      if (run && now - runStart >= RECORD_MS) finishRun();
+    }
+    requestAnimationFrame(tick);
+
+    $('record').addEventListener('click', () => {
+      if (run) return;
+      run = newCount(); runStart = performance.now();
+      live = newCount();   // the live counters restart with each recording
+    });
+
+    function finishRun() {
+      const r = run; run = null;
+      $('record').textContent = 'Record 20 s';
+      const pct = (n) => Math.round((100 * r.seen[n]) / r.frames);
+      const perMin = (n) => Math.round((r.lost[n] * 60000) / r.ms * 10) / 10;
+      const mean = r.dist.length ? r.dist.reduce((a, b) => a + b, 0) / r.dist.length : null;
+      const three = $('three').checked;
+      const row = {
+        condition: $('label').value.trim(),
+        markerCm: Core.CONFIG.MARKER_CM,
+        cards: three ? 3 : 2,
+        frame: hi ? 'large' : 'normal',
+        fps: Math.round((r.frames * 1000) / r.ms),
+        sensorSeenPct: pct('sensor'), carSeenPct: pct('car'), buzzerSeenPct: three ? pct('buzzer') : '',
+        sensorLostPerMin: perMin('sensor'), carLostPerMin: perMin('car'), buzzerLostPerMin: three ? perMin('buzzer') : '',
+        meanCentresCm: mean === null ? '' : Math.round(mean * 10) / 10,
+        wobbleCm: mean === null ? '' : Math.round((Math.max(...r.dist) - Math.min(...r.dist)) * 10) / 10,
+        device: navigator.userAgent,
+      };
+      const rows = load(); rows.push(row); store(rows); render();
+    }
+
+    function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+    function store(rows) { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} }
+
+    const COLS = ['condition', 'markerCm', 'cards', 'frame', 'fps', 'sensorSeenPct', 'carSeenPct', 'buzzerSeenPct',
+                  'sensorLostPerMin', 'carLostPerMin', 'buzzerLostPerMin', 'meanCentresCm', 'wobbleCm', 'device'];
+    const SHOWN = COLS.slice(0, -1);
+
+    function render() {
+      const rows = load();
+      const t = $('results');
+      t.textContent = '';
+      if (!rows.length) return;
+      const head = t.insertRow();
+      for (const c of SHOWN) { const th = document.createElement('th'); th.textContent = c; head.appendChild(th); }
+      for (const r of rows) {
+        const tr = t.insertRow();
+        for (const c of SHOWN) tr.insertCell().textContent = r[c];
+      }
+    }
+    render();
+
+    $('copy').addEventListener('click', async () => {
+      const cell = (x) => '"' + String(x ?? '').replace(/"/g, '""') + '"';
+      const csv = [COLS.join(',')].concat(load().map((r) => COLS.map((c) => cell(r[c])).join(','))).join('\n');
+      try { await navigator.clipboard.writeText(csv); $('note').textContent = 'Copied.'; }
+      catch (e) { $('note').textContent = 'Copy failed. Select the table by hand.'; }
+    });
+
+    $('clear').addEventListener('click', () => {
+      if (confirm('Delete all recorded rows on this phone?')) { store([]); render(); }
+    });
+  </script>
+</body>
+</html>

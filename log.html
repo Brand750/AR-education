@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saved log</title>
+  <style>
+    body { font: 14px/1.4 system-ui, -apple-system, sans-serif; margin: 16px; color: #16202e; }
+    table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 4px 12px 4px 0; border-bottom: 1px solid #e4e8ee; white-space: nowrap; }
+    th { font-size: 12px; opacity: 0.7; }
+    .wrap { overflow-x: auto; }
+    button { font: inherit; padding: 8px 12px; border: 0; border-radius: 8px; background: #1f6fd0; color: #fff; margin-right: 8px; }
+    button.quiet { background: #e4e8ee; color: #16202e; }
+  </style>
+</head>
+<body>
+  <h1>Saved log</h1>
+  <p>Steps finished on this phone. Nothing is uploaded.</p>
+  <p>
+    <button id="copy">Copy as CSV</button>
+    <button class="quiet" id="clear">Delete all</button>
+    <span id="note"></span>
+  </p>
+  <div class="wrap"><table id="table"></table></div>
+
+  <script src="log.js"></script>
+  <script>
+    const table = document.getElementById('table'), note = document.getElementById('note');
+
+    function render() {
+      const rows = Log.all();
+      table.textContent = '';
+      if (!rows.length) { note.textContent = 'No steps saved yet.'; return; }
+      const head = table.insertRow();
+      for (const c of Log.COLUMNS) { const th = document.createElement('th'); th.textContent = c; head.appendChild(th); }
+      for (const r of rows) {
+        const tr = table.insertRow();
+        for (const c of Log.COLUMNS) tr.insertCell().textContent = r[c] ?? '';
+      }
+    }
+    render();
+
+    document.getElementById('copy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(Log.toCsv()); note.textContent = 'Copied.'; }
+      catch (e) { note.textContent = 'Copy failed.'; }
+    });
+    document.getElementById('clear').addEventListener('click', () => {
+      if (confirm('Delete every saved step on this phone?')) { Log.clear(); render(); }
+    });
+  </script>
+</body>
+</html>

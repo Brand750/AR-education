@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Echo — AR</title>
+  <link rel="stylesheet" href="app.css">
+  <script src="vendor/aframe.min.js"></script>
+  <script src="vendor/aframe-ar.js"></script>
+</head>
+<body style="margin: 0; overflow: hidden;">
+  <!-- Marker values 1, 2, 4 from the 3x3 Hamming set: every pair differs in four cells. -->
+  <a-scene embedded
+           arjs="sourceType: webcam; detectionMode: mono_and_matrix; matrixCodeType: 3x3_HAMMING63; cameraParametersUrl: vendor/camera_para.dat; debugUIEnabled: false;"
+           vr-mode-ui="enabled: false"
+           device-orientation-permission-ui="enabled: false"
+           loading-screen="enabled: false"
+           renderer="logarithmicDepthBuffer: true;">
+    <a-marker id="sensor" type="barcode" value="1">
+      <!-- The pulse is attached to the sensor card, so it turns when the card turns. -->
+      <a-entity id="pulse" visible="false">
+        <a-ring id="pulse-out" rotation="-90 0 0" radius-inner="0.88" radius-outer="1"
+                theta-start="-26" theta-length="52"
+                material="shader: flat; color: #1f6fd0; side: double"></a-ring>
+        <a-ring id="pulse-back" rotation="-90 0 0" radius-inner="0.88" radius-outer="1"
+                theta-start="-26" theta-length="52"
+                material="shader: flat; color: #e2622b; side: double"></a-ring>
+      </a-entity>
+    </a-marker>
+    <a-marker id="car" type="barcode" value="2"></a-marker>
+    <a-entity camera look-controls="enabled: false"></a-entity>
+  </a-scene>
+
+  <script src="core.js"></script>
+  <script src="text.js"></script>
+  <script src="log.js"></script>
+  <script src="echo.js"></script>
+  <script>
+    // AR input: the car's position comes from the two tracked cards.
+    const C = Core.CONFIG;
+    const sensorEl = document.getElementById('sensor');
+    const carEl = document.getElementById('car');
+    const pulseEl = document.getElementById('pulse');
+    const outEl = document.getElementById('pulse-out');
+    const backEl = document.getElementById('pulse-back');
+    const v = new THREE.Vector3(), q = new THREE.Quaternion();
+
+    function read() {
+      const s = sensorEl.object3D, c = carEl.object3D;
+      const state = { sensorSeen: s.visible, carSeen: c.visible, forward: 0, sideways: 0 };
+      if (state.sensorSeen && state.carSeen) {
+        // Car position as seen from the sensor card. Height (y) is ignored: both cards lie flat.
+        v.copy(c.position).sub(s.position).applyQuaternion(q.copy(s.quaternion).invert());
+        const shown = Core.fromTracked(-v.z, v.x);   // forward = towards the top of the marker
+        state.forward = shown.forward;
+        state.sideways = shown.sideways;
+      }
+      return state;
+    }
+
+    function draw(view) {
+      const p = view.pulse;
+      if (!p || p.leg === 'rest' || !view.cm) { pulseEl.object3D.visible = false; return; }
+      // Back from shown cm to marker units on the sensor card.
+      const gap = view.cm / C.SCALE / C.MARKER_CM;
+      const edge = C.CARD_CM / 2 / C.MARKER_CM;
+      const ux = view.sideways / view.cm, uz = -view.forward / view.cm;
+      const out = p.leg === 'out';
+      const from = out ? edge : edge + gap;                       // sensor edge, or car edge
+      const size = Math.max(0.001, (out ? p.along : 1 - p.along) * gap);
+      const o = pulseEl.object3D;
+      o.position.set(ux * from, 0.02, uz * from);
+      o.rotation.set(0, Math.atan2(-uz, ux) + (out ? 0 : Math.PI), 0);
+      o.scale.set(size, size, size);
+      o.visible = true;
+      outEl.object3D.visible = out;
+      backEl.object3D.visible = !out;
+    }
+
+    EchoStep.start({ mode: 'ar', read, draw });
+  </script>
+</body>
+</html>

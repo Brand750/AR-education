@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>core.js checks</title>
+  <style>
+    body { font: 15px/1.5 ui-monospace, Menlo, monospace; margin: 16px; }
+    .pass { color: #13803c; } .fail { color: #c22a2a; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1 id="summary">Running…</h1>
+  <div id="out"></div>
+
+  <script src="core.js"></script>
+  <script>
+    // Typed values in, expected numbers out. Open this page to run the checks.
+    const out = document.getElementById('out');
+    let failed = 0, total = 0;
+    function check(name, got, want, tolerance = 1e-6) {
+      total++;
+      const ok = typeof want === 'number' ? Math.abs(got - want) <= tolerance : got === want;
+      if (!ok) failed++;
+      const p = document.createElement('div');
+      p.className = ok ? 'pass' : 'fail';
+      p.textContent = `${ok ? 'PASS' : 'FAIL'}  ${name}  got ${got}, want ${want}`;
+      out.appendChild(p);
+    }
+
+    // The two numbers
+    check('10 cm ahead -> 10 cm', Core.measure(10, 0).cm, 10);
+    check('10 cm ahead -> 0.58 ms echo', Core.measure(10, 0).echoMs, 0.583, 0.001);
+    check('twice as far -> twice the echo time', Core.measure(20, 0).echoMs / Core.measure(10, 0).echoMs, 2);
+    check('3 forward, 4 sideways -> 5 cm', Core.measure(3, 4).cm, 5);
+    check('straight ahead -> 0 degrees', Core.measure(10, 0).angleDeg, 0);
+    check('to the side -> 90 degrees', Core.measure(0, 10).angleDeg, 90);
+    check('30 cm is in range', Core.measure(30, 0).inRange, true);
+    check('31 cm is out of range', Core.measure(31, 0).inRange, false);
+
+    // Centre distance -> gap between card edges
+    check('touching cards -> 0 gap', Core.gapFromCentres(7.2, 0, 7.2).forward, 0);
+    check('overlapping cards -> 0 gap', Core.gapFromCentres(3, 0, 7.2).forward, 0);
+    check('17.2 cm centres -> 10 cm gap', Core.gapFromCentres(17.2, 0, 7.2).forward, 10);
+    const g = Core.gapFromCentres(0, -17.2, 7.2);
+    check('gap keeps its direction', g.sideways, -10);
+
+    // Tracked units -> shown cm (6 cm marker, 7.2 cm card, scale 1)
+    const tr = Core.fromTracked(17.2 / 6, 0);
+    check('tracked 2.867 marker widths -> 10 cm', tr.forward, 10);
+
+    // Pulse
+    check('pulse starts at the sensor', Core.pulseAt(0).along, 0);
+    check('pulse reaches the car', Core.pulseAt(0.4499).along, 1, 0.01);
+    check('first half goes out', Core.pulseAt(0.2).leg, 'out');
+    check('second half comes back', Core.pulseAt(0.6).leg, 'back');
+    check('pulse ends back at the sensor', Core.pulseAt(0.8999).along, 0, 0.01);
+    check('then rests', Core.pulseAt(0.95).leg, 'rest');
+    check('further car -> longer loop', Core.cycleMs(20) > Core.cycleMs(10), true);
+    check('loop at 10 cm, ms', Core.cycleMs(10), (0.5831 * 2000) / 0.9, 1);
+    check('intro loop is three times slower', Core.cycleMs(10, true) / Core.cycleMs(10), 3);
+    check('never faster than the minimum loop', Core.cycleMs(0), Core.CONFIG.MIN_CYCLE_MS);
+    check('phase advances by dt / loop', Core.advancePulse(0, Core.cycleMs(10) / 2, 10), 0.5);
+
+    // Steadiness
+    const sm = Core.makeSmoother(4);
+    sm.push(10, 0); sm.push(12, 0);
+    check('smoother averages', sm.push(14, 0).forward, 12);
+    sm.push(16, 0);
+    check('smoother drops old readings', sm.push(18, 0).forward, 15);
+
+    const hold = Core.makeHold(600);
+    check('seen -> live', hold.update(true, 7, 0).state, 'live');
+    check('just lost -> held', hold.update(false, null, 100).state, 'held');
+    check('held keeps the last value', hold.update(false, null, 500).value, 7);
+    check('lost too long -> lost', hold.update(false, null, 800).state, 'lost');
+    check('seen again -> live', hold.update(true, 9, 900).state, 'live');
+    check('never seen -> lost', Core.makeHold(600).update(false, null, 0).state, 'lost');
+
+    const s = document.getElementById('summary');
+    s.textContent = failed ? `${failed} of ${total} checks failed` : `All ${total} checks passed`;
+    s.className = failed ? 'fail' : 'pass';
+  </script>
+</body>
+</html>
