@@ -17,6 +17,7 @@
   <script src="text.js"></script>
   <script src="log.js"></script>
   <script src="echo.js"></script>
+  <script src="blind.js"></script>
   <script>
     // 2D input: a top view of the desk. The car is moved with a finger.
     const canvas = document.getElementById('desk');
@@ -74,10 +75,44 @@
     function read() {
       const c = toCm(car);
       const gap = Core.gapFromCentres(c.forward, c.sideways, CARD);
-      return { sensorSeen: true, carSeen: true, forward: gap.forward, sideways: gap.sideways };
+      return {
+        sensorSeen: true, carSeen: true, forward: gap.forward, sideways: gap.sideways,
+        centreForward: c.forward, centreSideways: c.sideways,   // direction only; the Blind spot step uses it
+      };
     }
 
-    function drawCard(p, label, fill, arrow) {
+    // Top-down pictures of the same models the AR page shows (models/src/build_models.py).
+    // cm = the width each picture covers on the desk.
+    const PICS = { sensor: { cm: 4.86 }, car: { cm: 6.566 } };
+    for (const [name, pic] of Object.entries(PICS)) {
+      pic.img = new Image();
+      pic.img.src = `models/top/${name}.png`;
+    }
+
+    function drawModelCard(p, label, pic, arrow) {
+      const s = CARD * pxPerCm, w = pic.cm * pxPerCm;
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(p.x - s / 2, p.y - s / 2, s, s, 8);
+      ctx.fill(); ctx.stroke();
+      ctx.drawImage(pic.img, p.x - w / 2, p.y - w / 2, w, w);
+      ctx.fillStyle = '#16202e';
+      ctx.font = `600 ${Math.max(10, s * 0.13)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, p.x, p.y + s * 0.4);
+      if (arrow) {            // the side the sensor faces
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - s * 0.46);
+        ctx.lineTo(p.x - s * 0.07, p.y - s * 0.36);
+        ctx.lineTo(p.x + s * 0.07, p.y - s * 0.36);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    function drawCard(p, label, fill, arrow, pic) {
+      if (pic && pic.img.complete && pic.img.naturalWidth) return drawModelCard(p, label, pic, arrow);
       const s = CARD * pxPerCm;
       ctx.fillStyle = '#fff';
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
@@ -102,12 +137,40 @@
       }
     }
 
+    // Blind spot step only: the area the sensor hears, 0 cm to the end of its range.
+    const UP = -Math.PI / 2;   // the sensor faces up the screen
+    function drawCone(cone) {
+      const r0 = (CARD / 2) * pxPerCm, r1 = (CARD / 2 + cone.rangeCm) * pxPerCm;
+      const h = (cone.halfDeg * Math.PI) / 180;
+      ctx.beginPath();
+      ctx.arc(sensor.x, sensor.y, r1, UP - h, UP + h);
+      ctx.arc(sensor.x, sensor.y, r0, UP + h, UP - h, true);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(31, 111, 208, 0.14)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(31, 111, 208, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Blind spot step only: the outgoing sound fills the cone, wherever the car is.
+    function drawConePulse(along, cone) {
+      const h = (cone.halfDeg * Math.PI) / 180;
+      ctx.strokeStyle = '#1f6fd0';
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(sensor.x, sensor.y, (CARD / 2 + along * cone.reachCm) * pxPerCm, UP - h, UP + h);
+      ctx.stroke();
+    }
+
     function draw(view) {
       ctx.clearRect(0, 0, W, H);
-      drawCard(sensor, Text.t.sensor, '#16202e', true);
-      drawCard(car, Text.t.car, '#5b6b7f', false);
+      if (view.cone) drawCone(view.cone);
+      drawCard(sensor, Text.t.sensor, '#16202e', true, PICS.sensor);
+      drawCard(car, Text.t.car, '#5b6b7f', false, PICS.car);
 
       if (!view.pulse || view.pulse.leg === 'rest') return;
+      if (view.cone && view.pulse.leg === 'out') return drawConePulse(view.pulse.along, view.cone);
       // The pulse runs from the sensor card's edge to the car card's edge.
       const dx = car.x - sensor.x, dy = car.y - sensor.y, d = Math.hypot(dx, dy);
       if (d === 0) return;
@@ -126,7 +189,9 @@
       ctx.stroke();
     }
 
-    EchoStep.start({ mode: '2d', read, draw });
+    // Echo by default; add ?step=blind for the Blind spot step.
+    const Step = new URLSearchParams(location.search).get('step') === 'blind' ? BlindStep : EchoStep;
+    Step.start({ mode: '2d', read, draw });
   </script>
 </body>
 </html>

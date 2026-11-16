@@ -38,6 +38,28 @@
     check('30 cm is in range', Core.measure(30, 0).inRange, true);
     check('31 cm is out of range', Core.measure(31, 0).inRange, false);
 
+    // The cone (Blind spot step): 15 degrees each side, sticky by 1 degree at the edge
+    check('straight ahead -> bearing 0', Core.bearingDeg(10, 0), 0);
+    check('to the right -> bearing 90', Core.bearingDeg(0, 10), 90);
+    check('to the left -> bearing -90', Core.bearingDeg(0, -10), -90);
+    check('behind the sensor -> bearing 180', Core.bearingDeg(-10, 0), 180);
+    check('10 ahead, 2 sideways -> 11.3 degrees', Core.bearingDeg(10, 2), 11.31, 0.01);
+    check('measure gives the same angle', Core.measure(10, 2).angleDeg, Core.bearingDeg(10, 2));
+    check('ahead and near -> heard', Core.hears(10, 0).heard, true);
+    check('15 degrees is inside the cone', Core.hears(10, 15).inCone, true);
+    check('16 degrees is outside the cone', Core.hears(10, 16).inCone, false);
+    check('the left side counts the same', Core.hears(10, -16).inCone, false);
+    check('near but outside the cone -> not heard', Core.hears(5, 40).heard, false);
+    check('outside the cone but still in range', Core.hears(5, 40).inRange, true);
+    check('inside the cone but too far -> not heard', Core.hears(31, 0).heard, false);
+    check('too far but still inside the cone', Core.hears(31, 0).inCone, true);
+    check('behind the sensor -> not heard', Core.hears(10, 180).heard, false);
+    check('was inside: 15.9 degrees stays inside', Core.hears(10, 15.9, true).inCone, true);
+    check('was inside: 16.1 degrees leaves', Core.hears(10, 16.1, true).inCone, false);
+    check('was outside: 14.1 degrees stays outside', Core.hears(10, 14.1, false).inCone, false);
+    check('was outside: 13.9 degrees enters', Core.hears(10, 13.9, false).inCone, true);
+    check('a miss runs a full-range pulse loop', Core.cycleMs(Core.CONFIG.RANGE_CM), (1.7493 * 2000) / 0.9, 1);
+
     // Centre distance -> gap between card edges
     check('touching cards -> 0 gap', Core.gapFromCentres(7.2, 0, 7.2).forward, 0);
     check('overlapping cards -> 0 gap', Core.gapFromCentres(3, 0, 7.2).forward, 0);

@@ -22,6 +22,22 @@ const Text = (() => {
       sensor: 'Sensor',
       car: 'Mobil',
       buzzer: 'Buzzer',
+      blind: {
+        title: 'Titik buta',
+        angle: 'Sudut',
+        deg: '°',
+        predictQuestion: 'Kalau mobil digeser ke samping sensor, sensor akan…',
+        predictOptions: {
+          same: 'tetap membaca jaraknya',
+          nothing: 'tidak membaca apa-apa',
+          further: 'membaca jarak yang lebih jauh',
+        },
+        introOut: 'Suara hanya menyebar di daerah biru…',
+        introBack: '…dan hanya memantul kalau mobil ada di dalamnya.',
+        exploreInside: 'Geser mobil ke samping sampai gemanya hilang.',
+        exploreOutside: 'Tidak ada gema. Geser mobil kembali ke daerah biru.',
+        finished: 'Langkah Titik buta selesai.',
+      },
     },
     en: {
       echoTime: 'Echo time',
@@ -42,6 +58,22 @@ const Text = (() => {
       sensor: 'Sensor',
       car: 'Car',
       buzzer: 'Buzzer',
+      blind: {
+        title: 'Blind spot',
+        angle: 'Angle',
+        deg: '°',
+        predictQuestion: 'If the car slides to the side of the sensor, the sensor will…',
+        predictOptions: {
+          same: 'still read its distance',
+          nothing: 'read nothing',
+          further: 'read a longer distance',
+        },
+        introOut: 'The sound only spreads through the blue area…',
+        introBack: '…and only bounces back if the car is inside it.',
+        exploreInside: 'Slide the car sideways until the echo disappears.',
+        exploreOutside: 'No echo. Slide the car back into the blue area.',
+        finished: 'Blind spot step finished.',
+      },
     },
   };
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Models check</title>
+  <script src="../vendor/aframe.min.js"></script>
+</head>
+<body>
+  <!-- Shows the three models without a camera, at the size they have on a 6 cm marker.
+       Grey squares are the cards (7.2 cm). No lights: the models carry their own shading. -->
+  <a-scene background="color: #e9e4da" vr-mode-ui="enabled: false" light="defaultLightsEnabled: false">
+    <a-entity position="0 0 -4" rotation="35 -25 0">
+      <a-entity position="-1.5 0 0">
+        <a-plane rotation="-90 0 0" width="1.2" height="1.2" material="shader: flat; color: #fff"></a-plane>
+        <a-entity gltf-model="url(sensor.glb)" scale="16.667 16.667 16.667"></a-entity>
+      </a-entity>
+      <a-entity>
+        <a-plane rotation="-90 0 0" width="1.2" height="1.2" material="shader: flat; color: #fff"></a-plane>
+        <a-entity gltf-model="url(car.glb)" scale="16.667 16.667 16.667"></a-entity>
+      </a-entity>
+      <a-entity position="1.5 0 0">
+        <a-plane rotation="-90 0 0" width="1.2" height="1.2" material="shader: flat; color: #fff"></a-plane>
+        <a-entity gltf-model="url(buzzer.glb)" scale="16.667 16.667 16.667"></a-entity>
+      </a-entity>
+    </a-entity>
+    <a-entity camera look-controls="enabled: false" position="0 0 0"></a-entity>
+  </a-scene>
+</body>
+</html>

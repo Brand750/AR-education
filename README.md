@@ -2,30 +2,33 @@
 
 AR Sensor Cards: students move printed cards under a phone camera to see how an ultrasonic sensor measures distance. This repository holds the prototype, a static page served by GitHub Pages.
 
-Built so far: the tracking test page and the Echo step, in two modes (real cards, or a finger on a flat screen).
+Built so far: the tracking test page, the Echo step and the Blind spot step. Each step runs in two modes (real cards, or a finger on a flat screen).
 
 ## Pages
 
 | Page | What it is |
 |---|---|
 | `index.html` | Researcher menu |
-| `ar.html` | Echo step with cards (AR.js barcode markers, A-Frame) |
-| `2d.html` | Echo step with a finger, on a top view of the desk |
+| `ar.html` | A step with cards (AR.js barcode markers, A-Frame) |
+| `2d.html` | The same step with a finger, on a top view of the desk |
 | `cards.html` | Printable card sheet, 6 cm and 8 cm markers |
 | `tracking.html` | Tracking test: seen or lost, frame rate, lost count, distance; records the test table |
 | `log.html` | Shows the log saved on the phone |
 | `test.html` | Checks for `core.js` |
 
-Add `?lang=en` to an Echo page or the card sheet for English. The default is Bahasa Indonesia.
+Both step pages open the Echo step. Add `?step=blind` for the Blind spot step.
+
+Add `?lang=en` to a step page or the card sheet for English (`?step=blind&lang=en` for both). The default is Bahasa Indonesia.
 
 ## How it is built
 
-One core, two inputs. `core.js` only sees the car's position measured from the sensor (forward and sideways). `ar.html` gets that position from two tracked cards; `2d.html` gets it from a dragged picture. `echo.js` runs the step itself (question, numbers, wording, log) and is the same file for both pages.
+One core, two inputs. `core.js` only sees the car's position measured from the sensor (forward and sideways). `ar.html` gets that position from two tracked cards; `2d.html` gets it from a dragged picture. `echo.js` runs the step itself (question, numbers, wording, log) and is the same file for both pages. `blind.js` does the same for the Blind spot step.
 
 | File | Job |
 |---|---|
 | `core.js` | Position in; distance, echo time and pulse timing out. Constants to set after the tracking test are at the top. |
 | `echo.js` | The Echo step, shared by both modes |
+| `blind.js` | The Blind spot step, shared by both modes: the sensor only hears inside a cone (15° each side), so a car beside it gives no reading |
 | `text.js` | Every word the student sees |
 | `log.js` | Saves finished steps to the phone |
 | `app.css` | Student screen styles |

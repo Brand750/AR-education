@@ -11,9 +11,11 @@ const Core = (() => {
     SCALE: 1,            // shown cm per real cm on the desk
     SMOOTH_FRAMES: 8,    // readings averaged for a steady number
     HOLD_MS: 600,        // keep the last value this long after a card is lost
+    CONE_EDGE_DEG: 1,    // the car must pass the cone's edge by this much before the reading flips
 
     // --- the lesson ---
     RANGE_CM: 30,        // furthest distance the sensor reads
+    CONE_HALF_DEG: 15,   // the sensor hears this far to each side of straight ahead
     SOUND_CM_PER_MS: 34.3,
     SLOWDOWN: 2000,      // the pulse on screen is this many times slower than real sound
     INTRO_SLOWDOWN: 3,   // the first "there and back" pulse is slower still
@@ -50,8 +52,23 @@ const Core = (() => {
       cm,
       echoMs: echoMs(cm),
       inRange: cm <= CONFIG.RANGE_CM,
-      angleDeg: (Math.atan2(sideways, forward) * 180) / Math.PI, // 0 = straight ahead
+      angleDeg: bearingDeg(forward, sideways),
     };
+  }
+
+  // Which way the car is from the sensor: 0 = straight ahead, 90 = directly to the side.
+  function bearingDeg(forward, sideways) {
+    return (Math.atan2(sideways, forward) * 180) / Math.PI;
+  }
+
+  // The sensor hears an echo only if the car is in range and inside its cone.
+  // wasInside is the last answer (true or false; null if there is none). It makes the
+  // cone's edge sticky by CONE_EDGE_DEG, so a car resting on the edge does not flicker.
+  function hears(cm, angleDeg, wasInside = null) {
+    const margin = wasInside === null ? 0 : wasInside ? CONFIG.CONE_EDGE_DEG : -CONFIG.CONE_EDGE_DEG;
+    const inRange = cm <= CONFIG.RANGE_CM;
+    const inCone = Math.abs(angleDeg) <= CONFIG.CONE_HALF_DEG + margin;
+    return { inRange, inCone, heard: inRange && inCone };
   }
 
   // The slow-motion pulse. phase runs 0..1 through one loop:
@@ -106,7 +123,7 @@ const Core = (() => {
   }
 
   return {
-    CONFIG, gapFromCentres, fromTracked, echoMs, measure,
+    CONFIG, gapFromCentres, fromTracked, echoMs, measure, bearingDeg, hears,
     cycleMs, advancePulse, pulseAt, makeSmoother, makeHold,
   };
 })();

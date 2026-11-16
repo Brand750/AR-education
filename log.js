@@ -23,6 +23,7 @@ const Log = (() => {
   const COLUMNS = [
     'savedAt', 'step', 'mode', 'lang', 'prediction', 'predictionCorrect',
     'predictionSeconds', 'stepSeconds', 'fps', 'sensorLost', 'carLost', 'device',
+    'coneExits', 'outsideSeconds',   // Blind spot step only; empty for other steps
   ];
 
   function toCsv(list = all()) {
